@@ -1,0 +1,1868 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Windows + WSL2 + Hermes Agent + ComfyUI 完全導入ガイド</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-0: #fafaf7;
+  --bg-1: #ffffff;
+  --bg-2: #f3f3ee;
+  --bg-3: #e8e8e0;
+  --ink: #1a1b22;
+  --ink-dim: #2a2c36;
+  --ink-faint: #5a5c68;
+  --lime: #5a7a0e;
+  --lime-dim: #8faf2a;
+  --coral: #d63438;
+  --cyan: #0d7a68;
+  --amber: #b8750a;
+  --violet: #6d4dc7;
+  --border: rgba(0,0,0,0.08);
+  --border-strong: rgba(0,0,0,0.15);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: var(--bg-0);
+  color: var(--ink);
+  line-height: 1.75;
+  font-weight: 300;
+  letter-spacing: 0.015em;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(90,122,14,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(90,122,14,0.04) 1px, transparent 1px);
+  background-size: 80px 80px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  top: 10%;
+  right: -200px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(143,175,42,0.15) 0%, transparent 70%);
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 40px 28px;
+  border-right: 1px solid var(--border);
+  background: rgba(250,250,247,0.85);
+  backdrop-filter: blur(20px);
+  overflow-y: auto;
+}
+
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--lime);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.brand::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: var(--lime);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(90,122,14,0.5);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.sidebar-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.15;
+  margin-bottom: 4px;
+  letter-spacing: -0.01em;
+}
+
+.sidebar-subtitle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-faint);
+  margin-bottom: 36px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+.toc-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin: 22px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.toc-label:first-of-type { margin-top: 0; }
+
+.toc ul { list-style: none; }
+.toc li { margin-bottom: 2px; }
+
+.toc a {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--ink-dim);
+  text-decoration: none;
+  font-size: 12.5px;
+  font-weight: 400;
+  padding: 7px 10px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  border-left: 2px solid transparent;
+}
+
+.toc a:hover {
+  color: var(--ink);
+  background: rgba(0,0,0,0.03);
+  border-left-color: var(--lime);
+}
+
+.toc a.active {
+  color: var(--lime);
+  background: rgba(90,122,14,0.08);
+  border-left-color: var(--lime);
+  font-weight: 500;
+}
+
+.toc a.highlight {
+  background: rgba(90,122,14,0.06);
+  border-left-color: var(--lime);
+  color: var(--lime);
+  font-weight: 500;
+}
+
+.toc a.highlight:hover {
+  background: rgba(90,122,14,0.15);
+}
+
+.toc-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-faint);
+  min-width: 22px;
+  font-weight: 500;
+}
+
+.toc a.active .toc-num,
+.toc a.highlight .toc-num { color: var(--lime); }
+
+.main {
+  padding: 80px 80px 120px;
+  max-width: 1000px;
+}
+
+.hero {
+  margin-bottom: 100px;
+  position: relative;
+}
+
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--lime);
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  margin-bottom: 32px;
+  padding: 6px 14px;
+  border: 1px solid var(--lime);
+  border-radius: 100px;
+  background: rgba(143,175,42,0.1);
+}
+
+.hero-eyebrow::before {
+  content: "◆";
+  color: var(--lime);
+}
+
+.hero h1 {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(44px, 6.5vw, 84px);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  margin-bottom: 24px;
+  color: var(--ink);
+}
+
+.hero h1 .accent {
+  font-style: italic;
+  color: var(--lime);
+  position: relative;
+  display: inline-block;
+}
+
+.hero h1 .accent::after {
+  content: "";
+  position: absolute;
+  bottom: 5px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--lime);
+  opacity: 0.5;
+}
+
+.hero-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin-bottom: 48px;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.hero-meta span::before {
+  content: "//";
+  color: var(--lime-dim);
+  margin-right: 8px;
+}
+
+.nav-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 48px;
+}
+
+.nav-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 28px 28px;
+  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  text-decoration: none;
+  display: block;
+  color: var(--ink);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-card:hover {
+  border-color: var(--lime);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(90,122,14,0.12);
+  color: var(--ink);
+}
+
+.nav-card.primary {
+  background: linear-gradient(135deg, rgba(143,175,42,0.12) 0%, rgba(143,175,42,0.04) 100%);
+  border: 1px solid rgba(90,122,14,0.3);
+}
+
+.nav-card.primary:hover {
+  border-color: var(--lime);
+  background: linear-gradient(135deg, rgba(143,175,42,0.2) 0%, rgba(143,175,42,0.08) 100%);
+}
+
+.nav-card-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--lime);
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-card-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 400;
+  margin-bottom: 10px;
+  color: var(--ink);
+}
+
+.nav-card-desc {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.nav-card-arrow {
+  display: inline-block;
+  margin-top: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--lime);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+section {
+  margin-bottom: 100px;
+  scroll-margin-top: 40px;
+}
+
+.section-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--lime);
+  letter-spacing: 0.25em;
+  margin-bottom: 12px;
+  display: block;
+}
+
+h2 {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(34px, 4vw, 50px);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 40px;
+  color: var(--ink);
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+h2 .accent {
+  font-style: italic;
+  color: var(--lime);
+}
+
+h3 {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 48px;
+  margin-bottom: 20px;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  letter-spacing: 0.01em;
+}
+
+h3::before {
+  content: "";
+  width: 4px;
+  height: 20px;
+  background: var(--lime);
+  display: inline-block;
+}
+
+h4 {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 15.5px;
+  font-weight: 700;
+  margin-top: 28px;
+  margin-bottom: 12px;
+  color: var(--ink);
+}
+
+p {
+  margin-bottom: 16px;
+  color: var(--ink-dim);
+  font-size: 14.5px;
+  line-height: 1.85;
+}
+
+p strong, li strong { color: var(--ink); font-weight: 700; }
+
+ul, ol {
+  margin-bottom: 20px;
+  padding-left: 0;
+  list-style: none;
+}
+
+ul li, ol li {
+  position: relative;
+  padding-left: 24px;
+  margin-bottom: 10px;
+  color: var(--ink-dim);
+  font-size: 14.5px;
+  line-height: 1.8;
+}
+
+ul li::before {
+  content: "▸";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--lime);
+  font-size: 14px;
+}
+
+ol { counter-reset: list; }
+ol li::before {
+  counter-increment: list;
+  content: counter(list, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  color: var(--lime);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.88em;
+  background: var(--bg-2);
+  color: var(--cyan);
+  padding: 2px 7px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  word-break: break-word;
+}
+
+pre {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--lime);
+  border-radius: 2px;
+  padding: 20px 24px;
+  margin: 20px 0;
+  overflow-x: auto;
+  position: relative;
+  font-size: 13px;
+}
+
+pre::before {
+  content: "▸ CODE";
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--ink-faint);
+  letter-spacing: 0.2em;
+}
+
+pre.bash::before { content: "▸ BASH"; }
+pre.powershell::before { content: "▸ POWERSHELL"; }
+pre.toml::before { content: "▸ TOML"; }
+pre.json::before { content: "▸ JSON"; }
+pre.ini::before { content: "▸ INI"; }
+
+pre code {
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: normal;
+}
+
+pre::-webkit-scrollbar { height: 6px; }
+pre::-webkit-scrollbar-track { background: var(--bg-3); }
+pre::-webkit-scrollbar-thumb { background: var(--border-strong); }
+
+.table-wrap {
+  overflow-x: auto;
+  margin: 24px 0;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+th {
+  background: var(--bg-2);
+  color: var(--lime);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  text-align: left;
+  padding: 14px 18px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+td {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink-dim);
+  vertical-align: top;
+  line-height: 1.65;
+}
+
+tbody tr { transition: background 0.2s ease; }
+tbody tr:hover { background: rgba(90,122,14,0.04); }
+tbody tr:last-child td { border-bottom: none; }
+
+td strong, td code { color: var(--ink); }
+
+.highlight-box {
+  background: linear-gradient(135deg, rgba(143,175,42,0.12) 0%, rgba(143,175,42,0.04) 100%);
+  border: 1px solid rgba(90,122,14,0.25);
+  border-left: 4px solid var(--lime);
+  padding: 24px 28px;
+  margin: 28px 0;
+  border-radius: 2px;
+  position: relative;
+}
+
+.highlight-box.warn {
+  background: linear-gradient(135deg, rgba(214,52,56,0.08) 0%, rgba(214,52,56,0.02) 100%);
+  border-color: rgba(214,52,56,0.25);
+  border-left-color: var(--coral);
+}
+
+.highlight-box.info {
+  background: linear-gradient(135deg, rgba(13,122,104,0.08) 0%, rgba(13,122,104,0.02) 100%);
+  border-color: rgba(13,122,104,0.2);
+  border-left-color: var(--cyan);
+}
+
+.highlight-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--lime);
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.highlight-box.warn .highlight-label { color: var(--coral); }
+.highlight-box.info .highlight-label { color: var(--cyan); }
+
+.highlight-box p:last-child { margin-bottom: 0; }
+.highlight-box ul:last-child, .highlight-box ol:last-child { margin-bottom: 0; }
+
+a {
+  color: var(--cyan);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(13,122,104,0.3);
+  transition: all 0.2s ease;
+  word-break: break-all;
+}
+a:hover { color: var(--lime); border-bottom-color: var(--lime); }
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 60px 0;
+}
+
+.footer {
+  margin-top: 80px;
+  padding-top: 40px;
+  border-top: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* ========== Daily Use Section - Visual Components ========== */
+
+.daily-hero {
+  background: linear-gradient(135deg, rgba(143,175,42,0.12) 0%, rgba(143,175,42,0.04) 100%);
+  border: 1px solid rgba(90,122,14,0.25);
+  border-radius: 4px;
+  padding: 36px 40px;
+  margin-bottom: 40px;
+}
+
+.daily-hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--lime);
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  margin-bottom: 12px;
+}
+
+.daily-hero-eyebrow::before {
+  content: "◆";
+}
+
+.daily-hero h2 {
+  font-family: 'Instrument Serif', serif;
+  font-size: 40px;
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 14px;
+}
+
+.daily-hero p {
+  font-size: 15px;
+  color: var(--ink-dim);
+  margin-bottom: 0;
+}
+
+.step-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin: 40px 0;
+}
+
+.step-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 32px 36px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.step-num {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: 72px;
+  line-height: 1;
+  color: var(--lime);
+  font-weight: 400;
+  position: relative;
+}
+
+.step-num::after {
+  content: "";
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--lime);
+  opacity: 0.3;
+}
+
+.step-body h3 {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 4px 0 8px;
+  display: block;
+  padding: 0;
+}
+
+.step-body h3::before { display: none; }
+
+.step-body .step-tagline {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-bottom: 16px;
+}
+
+.step-body p {
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.step-body pre {
+  margin: 16px 0;
+}
+
+.step-body .check {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(13,122,104,0.06);
+  border-left: 3px solid var(--cyan);
+  border-radius: 2px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  margin-top: 16px;
+}
+
+.step-body .check::before {
+  content: "✓";
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+/* Environment overview diagram */
+
+.env-overview {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 36px;
+  margin: 40px 0;
+  position: relative;
+}
+
+.env-overview::before {
+  content: "◈ YOUR DESKTOP";
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--lime);
+  letter-spacing: 0.2em;
+}
+
+.env-terminal {
+  background: #1a1b22;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+.env-terminal-bar {
+  background: #2a2c36;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.env-terminal-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.env-terminal-dot.red { background: #ff5f57; }
+.env-terminal-dot.yellow { background: #febc2e; }
+.env-terminal-dot.green { background: #28c840; }
+
+.env-terminal-title {
+  margin-left: 12px;
+  color: rgba(255,255,255,0.6);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.env-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: #2a2c36;
+}
+
+.env-tab {
+  background: #1a1b22;
+  padding: 0;
+}
+
+.env-tab-label {
+  padding: 10px 16px;
+  background: #2a2c36;
+  color: rgba(255,255,255,0.7);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  border-bottom: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.env-tab.active .env-tab-label {
+  background: #1a1b22;
+  color: var(--lime-dim);
+  border-bottom-color: var(--lime);
+}
+
+.env-tab-label::before {
+  content: "▶";
+  font-size: 9px;
+}
+
+.env-tab-content {
+  padding: 18px 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.8;
+  min-height: 140px;
+}
+
+.env-tab-content .prompt-user { color: var(--lime-dim); }
+.env-tab-content .prompt-bot { color: #5fb3d4; }
+.env-tab-content .dim { color: rgba(255,255,255,0.4); }
+.env-tab-content .log { color: rgba(255,255,255,0.55); }
+
+.env-flow-arrow {
+  text-align: center;
+  margin: 16px 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-faint);
+  letter-spacing: 0.15em;
+}
+
+.env-flow-arrow span {
+  display: inline-block;
+  padding: 6px 14px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+}
+
+.env-browser {
+  background: var(--bg-1);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+
+.env-browser-bar {
+  background: var(--bg-3);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.env-browser-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.env-browser-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.15);
+}
+
+.env-browser-url {
+  flex: 1;
+  padding: 6px 12px;
+  background: white;
+  border-radius: 100px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+.env-browser-content {
+  padding: 24px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  text-align: center;
+  line-height: 1.7;
+}
+
+.env-browser-content strong {
+  display: block;
+  font-size: 15px;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+/* Quick FAQ for daily use */
+
+.quick-faq {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 32px 0;
+}
+
+.faq-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 22px 24px;
+  border-left: 3px solid var(--amber);
+}
+
+.faq-q {
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.faq-q::before {
+  content: "Q. ";
+  color: var(--amber);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.faq-a {
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.7;
+}
+
+.faq-a::before {
+  content: "A. ";
+  color: var(--lime);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pitfall-list {
+  counter-reset: pitfall;
+  padding-left: 0;
+  margin: 32px 0;
+}
+
+.pitfall-list li {
+  counter-increment: pitfall;
+  position: relative;
+  padding: 18px 24px 18px 70px;
+  margin-bottom: 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--coral);
+  border-radius: 2px;
+  list-style: none;
+  transition: all 0.2s ease;
+}
+
+.pitfall-list li::before {
+  content: counter(pitfall, decimal-leading-zero);
+  position: absolute;
+  left: 24px;
+  top: 18px;
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: 28px;
+  color: var(--coral);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.pitfall-list li:hover {
+  border-left-color: var(--lime);
+  transform: translateX(4px);
+}
+
+.pitfall-list li:hover::before {
+  color: var(--lime);
+}
+
+.pitfall-list .pitfall-title {
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 14px;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.pitfall-list .pitfall-fix {
+  font-size: 13px;
+  color: var(--ink-faint);
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.step-marker {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--lime);
+  background: rgba(90,122,14,0.1);
+  padding: 3px 8px;
+  border-radius: 100px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+@media (max-width: 1024px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar {
+    position: relative;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .main { padding: 60px 40px; }
+  .nav-cards { grid-template-columns: 1fr; }
+  .step-card { grid-template-columns: 1fr; gap: 12px; }
+  .step-num { font-size: 56px; }
+  .env-tabs { grid-template-columns: 1fr; }
+  .quick-faq { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .main { padding: 40px 20px; }
+  .hero h1 { font-size: 40px; }
+  h2 { font-size: 30px; }
+  table { font-size: 12px; }
+  th, td { padding: 10px 12px; }
+  pre { padding: 16px 18px; font-size: 12px; }
+}
+
+@media print {
+  body { background: white; color: black; }
+  .sidebar { display: none; }
+  .layout { grid-template-columns: 1fr; }
+  body::before, body::after { display: none; }
+  .main { padding: 40px; max-width: none; }
+  section { page-break-inside: avoid; }
+}
+
+.hero h1, .hero-eyebrow, .hero-meta, .nav-card {
+  opacity: 0;
+  animation: fadeUp 0.8s ease forwards;
+}
+
+.hero-eyebrow { animation-delay: 0.1s; }
+.hero h1 { animation-delay: 0.2s; }
+.hero-meta { animation-delay: 0.4s; }
+.nav-card:nth-child(1) { animation-delay: 0.5s; }
+.nav-card:nth-child(2) { animation-delay: 0.6s; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+<aside class="sidebar">
+  <div class="brand">Field Guide</div>
+  <h1 class="sidebar-title">WSL2 × Hermes<br>× ComfyUI</h1>
+  <div class="sidebar-subtitle">Setup Manual / 2026.05</div>
+
+  <div class="toc-label">▸ 毎日使う人へ</div>
+  <nav class="toc">
+    <ul>
+      <li><a href="#daily" class="highlight"><span class="toc-num">★</span>毎日の使い方</a></li>
+    </ul>
+  </nav>
+
+  <div class="toc-label">▸ 初回セットアップ</div>
+  <nav class="toc">
+    <ul>
+      <li><a href="#sec1"><span class="toc-num">01</span>事前準備</a></li>
+      <li><a href="#sec2"><span class="toc-num">02</span>WSL2 + Ubuntu</a></li>
+      <li><a href="#sec3"><span class="toc-num">03</span>NVIDIA GPU</a></li>
+      <li><a href="#sec4"><span class="toc-num">04</span>Hermes Agent</a></li>
+      <li><a href="#sec5"><span class="toc-num">05</span>LLM プロバイダ</a></li>
+      <li><a href="#sec6"><span class="toc-num">06</span>ComfyUI</a></li>
+      <li><a href="#sec7"><span class="toc-num">07</span>モデル管理</a></li>
+    </ul>
+  </nav>
+
+  <div class="toc-label">▸ 参考</div>
+  <nav class="toc">
+    <ul>
+      <li><a href="#sec8"><span class="toc-num">08</span>運用パターン</a></li>
+      <li><a href="#sec9"><span class="toc-num">09</span>トラブル対処</a></li>
+      <li><a href="#sec10"><span class="toc-num">10</span>応用 (Discord)</a></li>
+      <li><a href="#pitfalls"><span class="toc-num">◇</span>落とし穴 TOP 10</a></li>
+      <li><a href="#links"><span class="toc-num">◇</span>参考リンク</a></li>
+    </ul>
+  </nav>
+</aside>
+
+<main class="main">
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="top">
+  <div class="hero-eyebrow">Local AI Environment · Setup Manual</div>
+  <h1>WSL2 ×<br>Hermes Agent<br>× <span class="accent">ComfyUI</span></h1>
+  <div class="hero-meta">
+    <span>Windows 11 / RTX 40xx</span>
+    <span>Initial setup 3-5h</span>
+    <span>v1.1 / 2026.05</span>
+  </div>
+
+  <p style="max-width: 720px; font-size: 15px; color: var(--ink-dim);">
+    Windows PC をローカル AI 画像生成 + 自然言語エージェント環境にするための、ゼロから動くまでの完全マニュアル。実際に踏みやすい落とし穴を全て先回りで潰してある。
+  </p>
+
+  <div class="nav-cards">
+    <a href="#daily" class="nav-card primary">
+      <div class="nav-card-label">◆ Already Set Up?</div>
+      <div class="nav-card-title">毎日の<em>使い方</em></div>
+      <div class="nav-card-desc">インストール済みの人はここから。Terminal を開いて <code>hermes</code> と打つだけ、実質 2 コマンドの世界。</div>
+      <div class="nav-card-arrow">→ JUMP TO DAILY USE</div>
+    </a>
+    <a href="#sec1" class="nav-card">
+      <div class="nav-card-label">◇ First Time</div>
+      <div class="nav-card-title">初めての<em>セットアップ</em></div>
+      <div class="nav-card-desc">ゼロからインストールする場合はここから順番に。所要 3〜5 時間。</div>
+      <div class="nav-card-arrow">→ START FROM SECTION 01</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============ DAILY USE - PROMINENT ============ -->
+<section id="daily">
+  <div class="daily-hero">
+    <div class="daily-hero-eyebrow">EVERYDAY USE</div>
+    <h2>毎日の使い方</h2>
+    <p>インストールが終わったら、日常的に打つコマンドは<strong>実質 2 つだけ</strong>。Terminal を開いて、<code>hermes</code> と打つ。それで完結します。</p>
+  </div>
+
+  <!-- 環境の全体像 -->
+  <h3>環境の全体像 — 何がどこで動いているか</h3>
+  <p>毎日の作業中、画面には<strong>「ターミナル 2 タブ」と「ブラウザ」</strong>が並びます。それぞれの役割を理解しておくと迷いません。</p>
+
+  <div class="env-overview">
+    <div class="env-terminal">
+      <div class="env-terminal-bar">
+        <div class="env-terminal-dot red"></div>
+        <div class="env-terminal-dot yellow"></div>
+        <div class="env-terminal-dot green"></div>
+        <div class="env-terminal-title">Windows Terminal</div>
+      </div>
+      <div class="env-tabs">
+        <div class="env-tab active">
+          <div class="env-tab-label">Ubuntu — 作業タブ</div>
+          <div class="env-tab-content"><span class="dim">username@HOSTNAME:~$</span> hermes<br>
+<span class="log">Hermes Agent v0.12 ready</span><br>
+<span class="prompt-user">&gt; こんにちは</span><br>
+<span class="prompt-bot">Hermes: お手伝いできることは？</span><br>
+<span class="prompt-user">&gt; 画像を生成して</span><br>
+<span class="prompt-bot">...</span></div>
+        </div>
+        <div class="env-tab">
+          <div class="env-tab-label">Ubuntu — ComfyUI 常駐</div>
+          <div class="env-tab-content"><span class="log">[ComfyUI] Starting server</span><br>
+<span class="log">[ComfyUI] To see the GUI go to:</span><br>
+<span class="log">  http://127.0.0.1:8188</span><br>
+<span class="log">[ComfyUI] got prompt</span><br>
+<span class="log">[ComfyUI] 100%|████████|</span><br>
+<span class="dim">(このタブは閉じない)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="env-flow-arrow"><span>port 8188 で通信 ↓</span></div>
+
+    <div class="env-browser">
+      <div class="env-browser-bar">
+        <div class="env-browser-dots">
+          <div class="env-browser-dot"></div>
+          <div class="env-browser-dot"></div>
+          <div class="env-browser-dot"></div>
+        </div>
+        <div class="env-browser-url">http://localhost:8188</div>
+      </div>
+      <div class="env-browser-content">
+        <strong>ComfyUI Web UI</strong>
+        ノードグラフでワークフローを直接編集したい時はここ
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight-box info">
+    <div class="highlight-label">◇ ポイント</div>
+    <p><strong>ComfyUI のタブは「裏方」、Hermes のタブは「会話用」</strong>。ComfyUI のタブはログが流れ続けるが触らない（閉じると死ぬ）。Hermes のタブで自然言語で指示する。ブラウザは Web UI で直接ノード触りたい時だけ使う。</p>
+  </div>
+
+  <!-- 2 ステップ -->
+  <h3>朝、PC を起動してから使い始めるまで</h3>
+
+  <div class="step-grid">
+
+    <!-- Step 1 -->
+    <div class="step-card">
+      <div class="step-num">01</div>
+      <div class="step-body">
+        <h3>Terminal を開いて Ubuntu に入る</h3>
+        <div class="step-tagline">/ ほぼ何もしなくていい</div>
+        <p>スタートメニューから <strong>「Terminal」</strong> を起動。Section 01 で <strong>既定のプロファイルを Ubuntu</strong> にしておけば、開いた時点で WSL Ubuntu の中に入っている状態になります。</p>
+        <p>もし PowerShell タブが開いた場合は <code>wsl</code> と打つだけ:</p>
+<pre class="powershell"><code>wsl</code></pre>
+        <p>プロンプトがこの形なら Ubuntu の中:</p>
+<pre><code>username@HOSTNAME:~$</code></pre>
+        <div class="check">末尾が <code>~$</code> なら OK。</div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step-card">
+      <div class="step-num">02</div>
+      <div class="step-body">
+        <h3>hermes と打つ</h3>
+        <div class="step-tagline">/ それだけ</div>
+<pre class="bash"><code>hermes</code></pre>
+        <p>対話モードが立ち上がって、自然言語で指示できる状態になります。例:</p>
+<pre><code>&gt; ComfyUI で「sunset over mountains」を 4 枚生成して
+&gt; 生成した画像のファイル名を一覧で見せて
+&gt; 出力ファイルを Discord に送って</code></pre>
+        <div class="check">終わるときは <code>Ctrl + D</code> または <code>/quit</code> で抜ける。</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="highlight-box info">
+    <div class="highlight-label">◇ ComfyUI は裏で動いている</div>
+    <p>Section 06 で <strong>systemd 自動起動</strong>を設定していれば、PC 起動と同時に ComfyUI もバックグラウンドで立ち上がっています。Hermes が画像生成を頼まれた時に勝手に使ってくれるので、ユーザーが直接気にする必要はありません。</p>
+    <p style="margin-top:12px;">ノードグラフを手で組みたい時だけブラウザで <code>http://localhost:8188</code> を開く。これは「毎日やる」ことではなく、ワークフロー設計したい時の選択肢。</p>
+  </div>
+
+  <!-- Quick FAQ -->
+  <h3>よくある「あれ？」と対処</h3>
+
+  <div class="quick-faq">
+    <div class="faq-card">
+      <div class="faq-q">ブラウザで <code>localhost:8188</code> が開けない</div>
+      <div class="faq-a">ComfyUI が動いていない。<code>systemctl --user restart comfyui</code> で再起動するか、systemd 未設定なら <code>cd ~/comfy && .venv/bin/python main.py --listen 127.0.0.1 --port 8188 --disable-smart-memory</code> を別タブで実行。</div>
+    </div>
+    <div class="faq-card">
+      <div class="faq-q">Hermes と打っても "command not found"</div>
+      <div class="faq-a">WSL に入れているか確認。プロンプトが <code>username@HOSTNAME:~$</code> の形なら OK。<code>PS C:\...&gt;</code> なら PowerShell。<code>wsl</code> を実行して Ubuntu に切り替える。</div>
+    </div>
+    <div class="faq-card">
+      <div class="faq-q"><code>Ctrl + V</code> で貼り付けが効かない</div>
+      <div class="faq-a"><code>Ctrl + Shift + V</code> または右クリックを使う。WSL 内の <code>Ctrl + V</code> は別のキーバインド。</div>
+    </div>
+    <div class="faq-card">
+      <div class="faq-q"><code>wsl</code> と打ったら違うシェルに入った</div>
+      <div class="faq-a">Docker Desktop 等が WSL に居座っている。PowerShell で <code>wsl --set-default Ubuntu</code> して、再度 <code>wsl</code>。</div>
+    </div>
+    <div class="faq-card">
+      <div class="faq-q">ComfyUI のサンプリング 50% で死ぬ</div>
+      <div class="faq-a">ComfyUI 起動コマンドに <code>--disable-smart-memory</code> が付いているか確認。systemd ユニットファイルに記述済みなら自動で付くので、systemd で起動していれば問題なし。</div>
+    </div>
+    <div class="faq-card">
+      <div class="faq-q">PC をシャットダウンして翌日もまた同じ手順？</div>
+      <div class="faq-a">そう。systemd 自動起動を設定していれば Step 1 と 3 だけで OK。設定していなければ Step 2 も必要。</div>
+    </div>
+  </div>
+
+  <h3>終了するとき</h3>
+  <p>気にしなくて OK。PC をシャットダウンすれば全部止まります。明示的に止めたいなら:</p>
+  <ul>
+    <li>Hermes 対話モード: <code>Ctrl + D</code> または <code>/quit</code></li>
+    <li>ComfyUI: タブを閉じる（または <code>systemctl --user stop comfyui</code>）</li>
+    <li>WSL ごと停止: PowerShell で <code>wsl --shutdown</code></li>
+  </ul>
+</section>
+
+<!-- ============ SEC 1 ============ -->
+<section id="sec1">
+  <span class="section-num">— SECTION 01 / SETUP</span>
+  <h2>事前準備<br><span style="font-size:0.5em; color:var(--ink-dim); font-style:italic;">ハードウェア・仮想化・Terminal</span></h2>
+
+  <h3>ハードウェア要件</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>項目</th><th>最低</th><th>推奨</th></tr></thead>
+      <tbody>
+        <tr><td>CPU</td><td>x64、4 コア</td><td>8 コア以上</td></tr>
+        <tr><td>メモリ</td><td>16GB</td><td>32GB 以上</td></tr>
+        <tr><td>GPU</td><td>NVIDIA RTX 20 系、VRAM 8GB</td><td>RTX 40 系、VRAM 16GB 以上</td></tr>
+        <tr><td>ストレージ</td><td>SSD 100GB 空き</td><td>NVMe SSD 500GB 空き</td></tr>
+        <tr><td>OS</td><td>Win 10 22H2 / Win 11</td><td>Win 11 23H2 以降</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>仮想化チェック — タスクマネージャーが最速</h3>
+
+  <ol>
+    <li><code>Ctrl + Shift + Esc</code> でタスクマネージャー起動</li>
+    <li><strong>パフォーマンス</strong> タブ → <strong>CPU</strong> を選択</li>
+    <li>右下に <strong>「仮想化: 有効」</strong> と表示されていれば OK</li>
+  </ol>
+
+  <p>無効になっていた場合のみ BIOS/UEFI で Intel VT-x または AMD-V を有効化。</p>
+
+  <h3>Windows Terminal を入れる — ほぼ必須</h3>
+
+  <div class="highlight-box warn">
+    <div class="highlight-label">🔥 最重要</div>
+    <p>旧 PowerShell コンソールは<strong>クリップボード操作が非常に不便</strong>で、コマンドの貼り付けが効かず手打ち地獄になる。本ガイドを始める前に必ず Windows Terminal を入れること。</p>
+  </div>
+
+  <ol>
+    <li>スタートメニュー → <strong>Microsoft Store</strong></li>
+    <li>「Windows Terminal」で検索 → <strong>入手</strong></li>
+    <li>完了後、スタートメニューから <strong>「Terminal」</strong> を起動</li>
+  </ol>
+
+  <p><strong>覚えておくショートカット</strong>:</p>
+  <ul>
+    <li><code>Ctrl + Shift + V</code> または右クリック … 貼り付け</li>
+    <li><code>Ctrl + Shift + C</code> … コピー</li>
+    <li><code>Ctrl + Shift + T</code> … 新規タブ</li>
+    <li><code>Ctrl + ,</code> … 設定</li>
+  </ul>
+
+  <p>設定で <strong>既定のプロファイルを Ubuntu に</strong> しておくと、毎回 Terminal を開けば自動的に Ubuntu タブが開きます。</p>
+</section>
+
+<!-- ============ SEC 2 ============ -->
+<section id="sec2">
+  <span class="section-num">— SECTION 02 / SETUP</span>
+  <h2>WSL2 + <span class="accent">Ubuntu</span></h2>
+
+  <h3>インストール</h3>
+  <p>Windows Terminal（または PowerShell）を <strong>管理者権限で</strong> 開いて:</p>
+
+<pre class="powershell"><code>wsl --install</code></pre>
+
+  <p>これ一行で WSL 機能有効化 + Virtual Machine Platform 有効化 + WSL2 カーネル DL + Ubuntu インストールが入る。完了後、<strong>PC を再起動</strong>。</p>
+
+  <div class="highlight-box warn">
+    <div class="highlight-label">🔥 時間と進捗表示の罠</div>
+    <p><code>wsl --install</code> は <strong>15 分〜1 時間以上</strong>。<strong>進捗表示がほとんど出ない時間帯がある</strong>ので「フリーズした？」と思って中断したくなるが、ほぼ確実にバックグラウンドで動いている。<strong>絶対に Ctrl+C で止めない、ウィンドウを閉じない、PC をスリープさせない</strong>。</p>
+  </div>
+
+  <h4>進捗が見える分割インストール（推奨）</h4>
+  <p>「黙ったまま 1 時間」が不安なら、2 ステップに分けるとフィードバックが明確:</p>
+
+<pre class="powershell"><code># Step 1: WSL の枠組みだけ入れる（数分）
+wsl --install --no-distribution
+
+# 再起動
+
+# Step 2: Ubuntu を別途インストール
+wsl --install -d Ubuntu-24.04</code></pre>
+
+  <h3>Ubuntu の初回セットアップ</h3>
+  <p>再起動後、スタートメニューから「Ubuntu」起動。プロビジョニングで 1〜3 分黙ることがある。</p>
+
+  <p>ユーザー名とパスワードを聞かれる:</p>
+<pre><code>Create a default Unix user account: &lt;あなたのユーザー名&gt;
+New password:
+Retype new password:</code></pre>
+
+  <div class="highlight-box warn">
+    <div class="highlight-label">⚠ 落とし穴</div>
+    <ul style="margin-top:8px;">
+      <li><strong>パスワード入力中はカーソルが動かない</strong>。打てているので最後まで入力して Enter</li>
+      <li>2 回目で違う文字を打つとエラー長文が出るが、<code>Try again? [y/N]</code> で <code>y</code> で再挑戦できる</li>
+      <li>シェル起動直後は <code>/mnt/c/Users/...$</code> にいる。<code>cd ~</code> でホームへ移動</li>
+    </ul>
+  </div>
+
+  <h3>WSL のバージョン確認</h3>
+<pre class="powershell"><code>wsl --list --verbose</code></pre>
+
+  <p>期待:</p>
+<pre><code>  NAME      STATE           VERSION
+* Ubuntu    Running         2</code></pre>
+
+  <div class="highlight-box warn">
+    <div class="highlight-label">⚠ Docker Desktop 同居問題</div>
+    <p>Docker Desktop 等が入っていると、<code>*</code> 印が <code>docker-desktop</code> に付き、<code>wsl</code> で違うシェルに迷い込む。対処:</p>
+<pre style="margin:12px 0 0;" class="powershell"><code>wsl --set-default Ubuntu</code></pre>
+  </div>
+
+  <h3>初期更新</h3>
+<pre class="bash"><code>sudo apt update && sudo apt upgrade -y</code></pre>
+
+  <h3>WSL 設定ファイル — 推奨</h3>
+  <p>Windows の <code>C:\Users\&lt;ユーザー名&gt;\.wslconfig</code>:</p>
+
+<pre class="ini"><code>[wsl2]
+memory=16GB
+processors=8
+swap=8GB
+localhostForwarding=true</code></pre>
+
+  <p>書き換えたら <code>wsl --shutdown</code> で反映。</p>
+</section>
+
+<!-- ============ SEC 3 ============ -->
+<section id="sec3">
+  <span class="section-num">— SECTION 03 / SETUP</span>
+  <h2>NVIDIA GPU<br>を WSL から使う</h2>
+
+  <div class="highlight-box warn">
+    <div class="highlight-label">🔥 絶対原則</div>
+    <p><strong>Windows 側にだけ NVIDIA Driver を入れる。WSL 側に入れない。</strong>WSL 内で <code>apt install nvidia-driver-*</code> をやると壊れる。</p>
+  </div>
+
+  <h3>Driver インストール</h3>
+  <ol>
+    <li><a href="https://www.nvidia.com/Download/index.aspx">NVIDIA Driver ページ</a></li>
+    <li>自分の GPU を選択 → <strong>Studio Driver</strong>（Game Ready より安定）</li>
+    <li>DL → インストール → 再起動</li>
+  </ol>
+
+  <h3>動作確認</h3>
+<pre class="bash"><code>nvidia-smi</code></pre>
+  <p>GPU 名と VRAM が表示されれば成功。CUDA Toolkit は<strong>入れる必要なし</strong>（PyTorch がバンドル）。</p>
+</section>
+
+<!-- ============ SEC 4 ============ -->
+<section id="sec4">
+  <span class="section-num">— SECTION 04 / SETUP</span>
+  <h2>Hermes Agent</h2>
+
+<pre class="bash"><code>sudo apt install -y git curl build-essential
+
+curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash</code></pre>
+
+  <p>10〜15 分かかる。完了後:</p>
+
+<pre class="bash"><code>source ~/.bashrc
+hermes --version</code></pre>
+
+  <p>バージョンが出れば成功。</p>
+</section>
+
+<!-- ============ SEC 5 ============ -->
+<section id="sec5">
+  <span class="section-num">— SECTION 05 / SETUP</span>
+  <h2>LLM プロバイダ<br><span style="font-size:0.5em; color:var(--ink-dim); font-style:italic;">DeepSeek V4 Flash</span></h2>
+
+  <h3>なぜ DeepSeek V4 Flash か</h3>
+
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><td style="width:30%;"><strong>価格</strong></td><td><strong style="color:var(--lime);">$0.14 / $0.28 per 1M tokens</strong></td></tr>
+        <tr><td><strong>品質</strong></td><td>Claude Sonnet 4.6 (max) 同等</td></tr>
+        <tr><td><strong>コンテキスト</strong></td><td>1M tokens</td></tr>
+        <tr><td><strong>月額想定</strong></td><td><strong style="color:var(--lime);">$0.5 〜 $2</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>API キー取得</h3>
+  <ol>
+    <li><a href="https://platform.deepseek.com/">https://platform.deepseek.com/</a> でアカウント作成</li>
+    <li>左メニュー <strong>API Keys</strong> → <strong>Create new API key</strong></li>
+    <li><code>sk-...</code> を<strong>この場でコピー</strong>（再表示不可）</li>
+    <li><strong>Top up</strong> で $5〜$10 入金</li>
+  </ol>
+
+  <h3>セットアップウィザード</h3>
+<pre class="bash"><code>hermes setup</code></pre>
+
+  <p>聞かれる順番:</p>
+
+  <ol>
+    <li><span class="step-marker">SCREEN 1</span> <strong>Quick setup</strong> で Enter</li>
+    <li><span class="step-marker">SCREEN 2</span> プロバイダ一覧から <strong>DeepSeek</strong> を選択<br><span style="font-size:13px; color:var(--ink-faint);">説明文に「V3, R1, coder」と書かれていても V4 で使えます</span></li>
+    <li><span class="step-marker">SCREEN 3</span> API キー <code>sk-...</code> を貼り付け<br><span style="font-size:13px; color:var(--ink-faint);">貼り付けは右クリックまたは Shift+Insert</span></li>
+    <li><span class="step-marker">SCREEN 4</span> Base URL は何も入力せず Enter（デフォルト値が正解）</li>
+    <li><span class="step-marker">SCREEN 5</span> モデル選択で <code>deepseek-v4-flash</code> を選ぶ</li>
+    <li><span class="step-marker">SCREEN 6</span> メッセージング設定は <strong>Skip / None</strong>（Discord は 10 章で後付け可）</li>
+  </ol>
+
+  <div class="highlight-box info">
+    <div class="highlight-label">◇ 完了画面の見方</div>
+    <p>「6/11 tool categories available」のような表示が出る。<strong>赤い ✗ が並んでいても問題なし</strong>。Mixture of Agents / Image Generation (cloud) / RL Training は本ガイドの用途では不要。</p>
+  </div>
+</section>
+
+<!-- ============ SEC 6 ============ -->
+<section id="sec6">
+  <span class="section-num">— SECTION 06 / SETUP</span>
+  <h2>ComfyUI<br>セットアップ</h2>
+
+  <h3>Hermes に頼んで自動セットアップ</h3>
+  <p><code>hermes</code> 対話モードで:</p>
+
+<pre><code>ComfyUIをローカルにセットアップして。GPUは&lt;あなたの GPU 名&gt;で、VRAMは&lt;容量&gt;です。
+インストール先は ~/comfy で、APIモード（ポート8188）で起動するようにしてください。</code></pre>
+
+  <p>Hermes が全部やってくれる。<strong>30 分〜1 時間</strong>かかる（PyTorch 約 2GB DL がボトルネック）。</p>
+
+  <div class="highlight-box warn">
+    <div class="highlight-label">🔥「Dangerous Command」警告への対応</div>
+    <p>途中で出る:</p>
+<pre style="margin:12px 0;"><code>⚠ Dangerous Command
+  pip install --user pipx && pipx ensurepath
+
+  1. Allow once
+&gt; 2. Allow for this session
+  3. Deny</code></pre>
+    <p><strong>「2. Allow for this session」</strong>。<code>pipx</code> は PyPA 公式の正規ツール、誤検知です。</p>
+  </div>
+
+  <h3>動作確認</h3>
+  <p>セットアップ完了したら、Windows ブラウザで:</p>
+<pre><code>http://localhost:8188</code></pre>
+  <p>ComfyUI のノードエディタが表示されれば成功。</p>
+
+  <h3>常駐化（強く推奨）— systemd 自動起動</h3>
+
+  <p>毎回手動で起動しなくて済むように、systemd ユーザーサービスを登録:</p>
+
+<pre class="bash"><code>mkdir -p ~/.config/systemd/user
+
+cat &gt; ~/.config/systemd/user/comfyui.service &lt;&lt;EOF
+[Unit]
+Description=ComfyUI Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$HOME/comfy
+ExecStart=$HOME/comfy/.venv/bin/python main.py --listen 127.0.0.1 --port 8188 --disable-smart-memory
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+
+systemctl --user daemon-reload
+systemctl --user enable --now comfyui
+systemctl --user status comfyui</code></pre>
+
+  <p>これで PC 起動時に自動で ComfyUI が立ち上がるようになる。毎日の使い方 Step 2 が省略できる。</p>
+</section>
+
+<!-- ============ SEC 7 ============ -->
+<section id="sec7">
+  <span class="section-num">— SECTION 07 / SETUP</span>
+  <h2>モデル管理</h2>
+
+  <h3>ディレクトリ構造</h3>
+
+<pre><code>~/comfy/models/
+├── checkpoints/        # SDXL/SD1.5 系の単一チェックポイント
+├── diffusion_models/   # Anima/Flux 等の DiT 系の本体
+├── text_encoders/      # 別ファイル化された TE
+├── vae/                # VAE
+├── loras/              # LoRA
+└── controlnet/         # ControlNet</code></pre>
+
+  <h3>HuggingFace の Xet 問題</h3>
+
+  <div class="highlight-box warn">
+    <div class="highlight-label">⚠ ハッシュ名で保存される</div>
+    <p>HuggingFace の大容量ファイルを <code>aria2c</code> で普通に DL するとハッシュ名で保存されることがある:</p>
+<pre style="margin:12px 0;"><code>77d11a095c65fa57e869056f95835b2b2b7d6fdd40720f581897db33daca9072</code></pre>
+    <p>対策: <code>-o</code> でファイル名指定する、または <code>huggingface-cli</code> を使う。</p>
+  </div>
+
+<pre class="bash"><code># 推奨: -o でファイル名指定
+aria2c -c -x 16 -s 16 \
+  -o anima-preview3-base.safetensors \
+  https://huggingface.co/.../anima-preview3-base.safetensors
+
+# または huggingface-cli
+~/comfy/.venv/bin/pip install huggingface_hub
+~/comfy/.venv/bin/huggingface-cli download &lt;repo&gt; &lt;path&gt; --local-dir &lt;dir&gt; --local-dir-use-symlinks False</code></pre>
+
+  <h3>Anima（DiT 系）の特殊性</h3>
+
+  <p>Anima は SDXL と違って<strong>3 ファイル別々</strong>に配置:</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ファイル</th><th>配置先</th><th>サイズ</th></tr></thead>
+      <tbody>
+        <tr><td><code>anima-preview3-base.safetensors</code></td><td><code>diffusion_models/</code></td><td>4.2 GB</td></tr>
+        <tr><td><code>qwen_3_06b_base.safetensors</code></td><td><code>text_encoders/</code></td><td>1.2 GB</td></tr>
+        <tr><td><code>qwen_image_vae.safetensors</code></td><td><code>vae/</code></td><td>254 MB</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="highlight-box info">
+    <div class="highlight-label">◇ モデル追加後は ComfyUI を再起動</div>
+    <p>ComfyUI は<strong>モデル一覧を起動時に 1 度だけスキャン</strong>する。新ファイルを追加したら必ず再起動:</p>
+<pre style="margin:12px 0 0;" class="bash"><code>systemctl --user restart comfyui</code></pre>
+  </div>
+
+  <h3>Zone.Identifier ファイル — 定期掃除</h3>
+  <p>Windows からコピーすると残骸ファイルが付くことがある:</p>
+<pre class="bash"><code>find ~/comfy/models/ -name "*Zone.Identifier*" -delete</code></pre>
+</section>
+
+<!-- ============ SEC 8 ============ -->
+<section id="sec8">
+  <span class="section-num">— SECTION 08 / REFERENCE</span>
+  <h2>運用パターン<br><span style="font-size:0.5em; color:var(--ink-dim); font-style:italic;">3 つのルートを使い分け</span></h2>
+
+  <h3>ルート A — Web UI を直接使う</h3>
+  <p>ブラウザで <code>http://localhost:8188</code>。ノードを手で組む。試行錯誤・新モデル動作確認に最適。</p>
+
+  <h3>ルート B — Hermes に自然言語で頼む</h3>
+  <p><code>hermes</code> 対話モードで「これとこれをやって」と話す。バッチ自動化・複数ツール連鎖に強い。コンテンツポリシー対象は弾かれる。</p>
+
+  <h3>ルート C — Python ランナーで API 直接</h3>
+  <p>ComfyUI のワークフロー JSON を Python から API に投げる。Hermes が拒否する内容や、完全自動化に。</p>
+
+  <h3>役割分担の最適解</h3>
+  <p>ComfyUI Web UI で<strong>ワークフロー設計</strong>、Python で<strong>バッチ実行</strong>、Hermes で<strong>オーケストレーション・通知</strong>。Hermes は中身を見ない物流係として使うとコンテンツポリシーに引っかからない。</p>
+</section>
+
+<!-- ============ SEC 9 ============ -->
+<section id="sec9">
+  <span class="section-num">— SECTION 09 / REFERENCE</span>
+  <h2>トラブル対処</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>症状</th><th>対処</th></tr></thead>
+      <tbody>
+        <tr><td><code>nvidia-smi</code> が動かない</td><td>Windows 側の NVIDIA Driver を最新版に。WSL 内に nvidia-driver を入れてしまった場合は <code>sudo apt purge nvidia-*</code></td></tr>
+        <tr><td><code>wsl</code> で別ディストロに入る</td><td><code>wsl --set-default Ubuntu</code></td></tr>
+        <tr><td><code>Connection refused 127.0.0.1:8188</code></td><td>ComfyUI が落ちてる。<code>systemctl --user restart comfyui</code> で再起動</td></tr>
+        <tr><td>CUDA out of memory</td><td>解像度を下げる / 他の GPU 使用アプリ（Chrome、Discord）を終了 / fp8 量子化モデル</td></tr>
+        <tr><td>サンプリング 50% で突然死</td><td><code>--disable-smart-memory</code> 起動オプション必須</td></tr>
+        <tr><td>新モデルがリストに出ない</td><td>ComfyUI を再起動（<code>systemctl --user restart comfyui</code>）</td></tr>
+        <tr><td>モデル名がハッシュ値になっている</td><td>Section 07 の HuggingFace Xet 問題参照</td></tr>
+        <tr><td>Hermes が NSFW を拒否</td><td>設計通り。Python ランナーで API 直接叩くパターンに切替</td></tr>
+        <tr><td><code>pip install</code> で <code>externally-managed-environment</code></td><td>Ubuntu 24.04 の PEP 668 保護。<code>~/comfy/.venv/bin/pip</code> を使う</td></tr>
+        <tr><td>WSL のディスク使用量が膨らんでいく</td><td><code>wsl --shutdown</code> → <code>diskpart</code> → <code>compact vdisk</code> で圧縮</td></tr>
+        <tr><td>クリップボード貼り付けが効かない</td><td>WSL 内では <code>Ctrl + Shift + V</code> または右クリック</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ SEC 10 ============ -->
+<section id="sec10">
+  <span class="section-num">— SECTION 10 / ADVANCED</span>
+  <h2>応用<br><span class="accent">Discord 連携</span></h2>
+
+  <p>外出先のスマホから Discord 経由で Hermes に話しかけられるようにする。所要 15〜25 分。</p>
+
+  <h3>Bot 作成</h3>
+  <ol>
+    <li><a href="https://discord.com/developers/applications">Discord Developer Portal</a> で <strong>New Application</strong></li>
+    <li>左メニュー <strong>Bot</strong> → <strong>Privileged Gateway Intents</strong> で <strong>Message Content Intent</strong> を ON</li>
+    <li><strong>Reset Token</strong> で Token をコピー（再表示不可）</li>
+  </ol>
+
+  <h3>サーバーに招待</h3>
+  <ol>
+    <li>左メニュー <strong>OAuth2</strong></li>
+    <li><strong>Scopes</strong>: <code>bot</code>, <code>applications.commands</code></li>
+    <li><strong>Bot Permissions</strong>: <code>Send Messages</code> / <code>Read Message History</code> / <code>Attach Files</code> / <code>Embed Links</code></li>
+    <li>生成 URL をブラウザで開く → サーバー選択 → 認証</li>
+  </ol>
+
+  <h3>ID 取得</h3>
+  <p>Discord で <strong>設定 → 詳細設定 → 開発者モード</strong> を ON。</p>
+  <ul>
+    <li>チャンネル ID: チャンネルを右クリック → <strong>チャンネル ID をコピー</strong></li>
+    <li>ユーザー ID: 自分のユーザー名を右クリック → <strong>ユーザー ID をコピー</strong></li>
+  </ul>
+
+  <h3>Hermes に Gateway 追加</h3>
+<pre class="bash"><code>hermes gateway add discord</code></pre>
+  <p>対話式で Bot Token、Allowed Channel IDs、Allowed User IDs を入力。</p>
+
+  <h3>常駐化</h3>
+<pre class="bash"><code>cat &gt; ~/.config/systemd/user/hermes-discord.service &lt;&lt;EOF
+[Unit]
+Description=Hermes Discord Gateway
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$HOME/.local/bin/hermes gateway start discord
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+
+systemctl --user daemon-reload
+systemctl --user enable --now hermes-discord</code></pre>
+
+  <div class="highlight-box warn">
+    <div class="highlight-label">🔥 成人向け画像を扱う場合の必須事項</div>
+    <ul style="margin-top:8px;">
+      <li><strong>NSFW チャンネル設定</strong>: チャンネル編集 → 概要 → <strong>年齢制限のあるチャンネル</strong> を ON</li>
+      <li><strong>CSAM 検出</strong>: 外見年齢が大人と判別できる画風・体型を徹底</li>
+      <li>非 NSFW チャンネルへの投稿はアカウント永久 BAN リスク</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ PITFALLS ============ -->
+<section id="pitfalls">
+  <span class="section-num">— APPENDIX A</span>
+  <h2>落とし穴<br><span class="accent">TOP 10</span></h2>
+
+  <p>このガイドを読みながら進めても踏みやすい順。</p>
+
+  <ol class="pitfall-list">
+    <li>
+      <span class="pitfall-title"><code>wsl --install</code> の進捗が止まって見えてキャンセル</span>
+      <span class="pitfall-fix">→ 待つ。1 時間級になることがある</span>
+    </li>
+    <li>
+      <span class="pitfall-title">クリップボードが効かなくて手打ち地獄</span>
+      <span class="pitfall-fix">→ Windows Terminal を入れる + <code>Ctrl + Shift + V</code></span>
+    </li>
+    <li>
+      <span class="pitfall-title">Docker Desktop 等が入ってて <code>wsl</code> で違うディストロに入る</span>
+      <span class="pitfall-fix">→ <code>wsl --set-default Ubuntu</code></span>
+    </li>
+    <li>
+      <span class="pitfall-title">ComfyUI が Terminal タブを閉じると死ぬ</span>
+      <span class="pitfall-fix">→ systemd で常駐化（Section 06 末尾）</span>
+    </li>
+    <li>
+      <span class="pitfall-title"><code>pip install</code> が PEP 668 エラー</span>
+      <span class="pitfall-fix">→ <code>~/comfy/.venv/bin/pip</code> を使う</span>
+    </li>
+    <li>
+      <span class="pitfall-title">Hermes の "Dangerous Command" 警告で止まる</span>
+      <span class="pitfall-fix">→ pipx は誤検知。Allow for this session</span>
+    </li>
+    <li>
+      <span class="pitfall-title">HuggingFace の DL がハッシュ名になる</span>
+      <span class="pitfall-fix">→ <code>aria2c -o &lt;filename&gt;</code> または <code>huggingface-cli</code></span>
+    </li>
+    <li>
+      <span class="pitfall-title">モデル追加したのに ComfyUI が認識しない</span>
+      <span class="pitfall-fix">→ ComfyUI を再起動</span>
+    </li>
+    <li>
+      <span class="pitfall-title">Hermes が NSFW を拒否してパイプラインが止まる</span>
+      <span class="pitfall-fix">→ 役割分担。Python ランナーで API 直叩き</span>
+    </li>
+    <li>
+      <span class="pitfall-title">ComfyUI のサンプリング 50% で突然死</span>
+      <span class="pitfall-fix">→ <code>--disable-smart-memory</code> 起動オプション必須</span>
+    </li>
+  </ol>
+</section>
+
+<!-- ============ LINKS ============ -->
+<section id="links">
+  <span class="section-num">— APPENDIX B</span>
+  <h2>参考リンク</h2>
+
+  <h3>公式ドキュメント</h3>
+  <ul>
+    <li>Hermes Agent: <a href="https://hermes-agent.nousresearch.com/docs">hermes-agent.nousresearch.com/docs</a></li>
+    <li>ComfyUI 公式: <a href="https://docs.comfy.org/">docs.comfy.org</a></li>
+    <li>WSL 公式: <a href="https://learn.microsoft.com/en-us/windows/wsl/">learn.microsoft.com/en-us/windows/wsl</a></li>
+    <li>NVIDIA CUDA on WSL: <a href="https://docs.nvidia.com/cuda/wsl-user-guide/">docs.nvidia.com/cuda/wsl-user-guide</a></li>
+  </ul>
+
+  <h3>LLM プロバイダ</h3>
+  <ul>
+    <li>DeepSeek Platform: <a href="https://platform.deepseek.com/">platform.deepseek.com</a></li>
+    <li>OpenRouter: <a href="https://openrouter.ai/">openrouter.ai</a></li>
+    <li>Anthropic Console: <a href="https://console.anthropic.com/">console.anthropic.com</a></li>
+  </ul>
+
+  <h3>モデル入手</h3>
+  <ul>
+    <li>Hugging Face: <a href="https://huggingface.co/">huggingface.co</a></li>
+    <li>Civitai: <a href="https://civitai.com/">civitai.com</a></li>
+  </ul>
+
+  <h3>ディスク容量の目安</h3>
+
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><td>WSL2 + Ubuntu base</td><td>約 5GB</td></tr>
+        <tr><td>Hermes Agent + 依存</td><td>約 3GB</td></tr>
+        <tr><td>ComfyUI + PyTorch</td><td>約 8GB</td></tr>
+        <tr><td>モデル群（標準的）</td><td>10〜40GB</td></tr>
+        <tr><td>生成出力</td><td>2〜5GB</td></tr>
+        <tr><td><strong>合計（標準運用）</strong></td><td><strong style="color:var(--lime);">50〜100GB</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>NVMe SSD で 200GB 以上の空きを確保推奨。</p>
+</section>
+
+<div class="footer">
+  <span>Field Guide / 2026.05</span>
+  <span>v1.1 · Setup Manual</span>
+</div>
+
+</main>
+</div>
+
+<script>
+const sections = document.querySelectorAll('section[id]');
+const tocLinks = document.querySelectorAll('.toc a');
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      tocLinks.forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, { rootMargin: '-30% 0px -60% 0px' });
+
+sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
